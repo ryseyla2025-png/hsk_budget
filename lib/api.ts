@@ -61,6 +61,16 @@ export async function checkLogin(email: string | null | undefined): Promise<bool
   }
 }
 
+/** The active Users row for this session email, or null. */
+export async function activeUser(email: string | null | undefined) {
+  if (!email) return null;
+  const snapshot = await getSnapshot();
+  return runWithDb(snapshot, async () => {
+    const user = findUserByEmail_(email);
+    return user && user.Active === 'YES' ? user : null;
+  });
+}
+
 /** Daily backup from Vercel Cron. */
 export async function runScheduledBackup(): Promise<ApiResult> {
   try {

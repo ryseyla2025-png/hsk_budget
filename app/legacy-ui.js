@@ -602,7 +602,7 @@ async function viewSettings(){
     <div class="err" id="stErr"></div><button class="btn primary" id="stSave">រក្សាទុក</button></div>
     <div class="card"><h2>ថ្នាក់រៀន</h2><div class="pills">${S.boot.allClasses.map(c => `<button class="pill ${c.active ? 'on' : ''}" data-cl="${esc(c.classId)}" data-a="${c.active ? 1 : 0}" title="ចុចដើម្បីបិទ/បើក">${esc(c.classId)}</button>`).join('')}</div>
       <div class="row"><div class="field" style="max-width:200px"><label>បន្ថែមថ្នាក់ថ្មី</label><input type="text" id="stNewClass" placeholder="ឧ. 11G"></div><button class="btn" id="stAddClass" style="margin-bottom:12px">បន្ថែម</button></div></div>
-    <div class="card"><h2>ការបម្រុងទុក</h2><p class="muted">ចម្លង Spreadsheet ទាំងមូលទៅ Google Drive ថត HSK-Budget-Backups។ ការបម្រុងទុកប្រចាំថ្ងៃដំណើរការដោយស្វ័យប្រវត្តិ ប្រសិនបើបានដំឡើង។</p><button class="btn" id="stBackup">បម្រុងទុកឥឡូវនេះ</button></div>`;
+    <div class="card"><h2>ការបម្រុងទុក</h2><p class="muted">ទាញយក Spreadsheet ទាំងមូល (ឯកសារ Excel .xlsx) ទៅកុំព្យូទ័ររបស់អ្នក ហើយចម្លងទៅ Google Drive ថត HSK-Budget-Backups ផងដែរ (ប្រសិនបើបានដំឡើង)។ ការបម្រុងទុកប្រចាំថ្ងៃដំណើរការដោយស្វ័យប្រវត្តិ ប្រសិនបើបានដំឡើង។</p><button class="btn" id="stBackup">បម្រុងទុកឥឡូវនេះ</button></div>`;
   $('#stSave').onclick = async () => {
     try {
       const months = $('#stMonths').value.split(',').map(x => x.trim()).filter(Boolean);
@@ -615,7 +615,25 @@ async function viewSettings(){
     try { await call('saveClass', { classId: b.dataset.cl, active: b.dataset.a !== '1' }); await startApp(); go('settings'); } catch(e){ fail(e); }
   });
   $('#stAddClass').onclick = async () => { try { await call('saveClass', { classId: $('#stNewClass').value }); await startApp(); go('settings'); toast('បានបន្ថែមថ្នាក់'); } catch(e){ fail(e); } };
-  $('#stBackup').onclick = async () => { try { const r = await call('backupNow'); toast('បានបម្រុងទុក៖ ' + r.name); } catch(e){ fail(e); } };
+  $('#stBackup').onclick = async () => {
+    const btn = $('#stBackup'); btn.disabled = true;
+    try {
+      // 1) download a copy to this computer
+      toast('កំពុងទាញយក…');
+      let res;
+      try { res = await fetch('/api/backup/download', { credentials: 'same-origin', cache: 'no-store' }); }
+      catch(e){ throw new Error('មិនអាចភ្ជាប់ទៅម៉ាស៊ីនមេបានទេ។ សូមពិនិត្យអ៊ីនធឺណិត។'); }
+      if (!res.ok) { let r = null; try { r = await res.json(); } catch(e){} if (r && r.code === 'AUTH') showLogin(r.error); throw new Error(r && r.error ? r.error : 'មិនអាចទាញយកឯកសារបម្រុងទុកបានទេ'); }
+      const m = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+      const name = m ? m[1] : 'HSK-Backup.xlsx';
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      // 2) also copy to Google Drive (when the backup web app is set up)
+      try { const r = await call('backupNow'); toast('បានទាញយក ' + name + ' និងបម្រុងទុកក្នុង Drive៖ ' + r.name); }
+      catch(e){ toast('បានទាញយក ' + name + '។ (Google Drive៖ ' + e.message + ')'); }
+    } catch(e){ fail(e); } finally { btn.disabled = false; }
+  };
 }
 
 /* ============================ Audit ============================ */

@@ -96,6 +96,22 @@ export async function spreadsheetMeta(): Promise<any> {
   return gfetch(`${BASE}/${sheetId()}?fields=properties.title,sheets(properties(sheetId,title,hidden,gridProperties),protectedRanges(protectedRangeId,editors,warningOnly))`);
 }
 
+/** Whole spreadsheet as an .xlsx file (all sheets). Read-only; works with the spreadsheets scope. */
+export async function exportXlsx(): Promise<Buffer> {
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { token } = await client().getAccessToken();
+    const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId()}/export?format=xlsx`, {
+      cache: 'no-store', redirect: 'follow', headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) return Buffer.from(await res.arrayBuffer());
+    lastErr = `${res.status} ${(await res.text()).slice(0, 300)}`;
+    if (res.status === 429 || res.status >= 500) { await sleep(1000 * (attempt + 1)); continue; }
+    break;
+  }
+  throw new Error(`Spreadsheet export failed: ${lastErr}`);
+}
+
 export function colLetter(n: number): string {
   let s = '';
   while (n > 0) {
